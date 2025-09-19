@@ -1,25 +1,39 @@
-# History files
+# Default files
 .Rhistory
 .Rapp.history
-
-# Session Data files
+.Rproj.user/
+.Ruserdata
+.DS_Store
 .RData
 .RDataTmp
-
-# User-specific files
 .Ruserdata
 
 # Example code in package build process
 *-Ex.R
+*-Ex.Rmd
 
 # Output files from R CMD build
 /*.tar.gz
 
+# Output data
+*.log
+*.png
+*.tiff
+*.jpg
+*.html
+*.csv
+*.xlsx
+*.pdf
+*.rds
+*.docx
+*.pptx
+
+# Data folder
+data/
+
 # Output files from R CMD check
 /*.Rcheck/
 
-# RStudio files
-.Rproj.user/
 
 # produced vignettes
 vignettes/*.html
