@@ -456,7 +456,7 @@ tmn_blood <- tmn_patients %>%
          .after = sample_sequence_number
   ) %>% 
   ungroup() %>% 
-  mutate(interval_sample_to_tmn_days = interval(start = specimen_collection_dt, end = tmn_dx_dt) /
+  mutate(interval_sample_to_tmn_days = interval(start = tmn_dx_dt, end = specimen_collection_dt) /
            duration(n = 1, units = "days"),
          .after = sample_lag_days) %>%
   mutate(interval_primary_cancer_to_samples_days = interval(start = primary_cancer_dt, end = specimen_collection_dt) /
@@ -497,22 +497,28 @@ tmn_blood <-
                   "/CHevolution_all_cancer_type_patients_with_tmn_20251028.rds"))
 
 breast_samples <- tmn_blood %>%
-  filter(primary_cancer_site_group == "Breast") %>% 
-  filter(interval_sample_to_tmn_days <= 10)
+  filter(primary_cancer_site_group == "Breast") #%>% 
+  # filter(interval_sample_to_tmn_days <= 10)
 
 write_csv(breast_samples %>% select(mrn, sample_sequence_number, sample_id,
                                sample_family_id, interval_sample_to_tmn_days,
-                               specimen_collection_dt,
-                               best_anatomic_site, sample_type),
+                               tmn_dx_dt,
+                               specimen_collection_dt, blood_vs_tmn_sequence,
+                               best_anatomic_site, sample_type) %>% 
+            mutate(tmn_dx_dt = as.Date(tmn_dx_dt)) %>% 
+            mutate(specimen_collection_dt = as.Date(specimen_collection_dt)),
           paste0("data/processed_data",
-                 "/CHevolution_breast_patients_sampleslist_at_or_after_TMN_dx_", 
+                 "/CHevolution_breast_patients_sampleslist_", 
                  str_remove_all(today(), "-"), ".csv"))
 write_csv(breast_samples %>% select(mrn, sample_sequence_number, sample_id,
                                     sample_family_id, interval_sample_to_tmn_days,
-                                    specimen_collection_dt,
-                                    best_anatomic_site, sample_type),
+                                    tmn_dx_dt,
+                                    specimen_collection_dt, blood_vs_tmn_sequence, 
+                                    best_anatomic_site, sample_type) %>% 
+            mutate(tmn_dx_dt = as.Date(tmn_dx_dt)) %>% 
+            mutate(specimen_collection_dt = as.Date(specimen_collection_dt)),
           paste0(path_clinical, "/ProcessedData",
-                 "/CHevolution_breast_patients_sampleslist_at_or_after_TMN_dx_", 
+                 "/CHevolution_breast_patients_sampleslist_", 
                  str_remove_all(today(), "-"), ".csv"))
 
 
