@@ -51,9 +51,7 @@ theme_gtsummary_compact()
 tmn_blood <-
   read_rds(paste0(here::here(), 
                   "/data/processed_data",
-                  "/CHevolution_all_patients_with_tmn_20251013.rds")) %>% 
-  mutate(across(c(where(is_character),
-                  -sample_id, -sample_type), ~ str_to_sentence(.)))
+                  "/CHevolution_all_cancer_type_patients_with_tmn_20251028.rds"))
 
 path_clinical <- fs::path("", "Volumes", "Gillis_Research", "Lab_Data", "CHEvolutionTMN")
 # cancer_data <-
@@ -66,11 +64,14 @@ path_clinical <- fs::path("", "Volumes", "Gillis_Research", "Lab_Data", "CHEvolu
 
 ```{r selection}
 tmn_blood <- tmn_blood %>%
-  #   filter(number_of_sample_bf_tmn > 2 |
+  #   filter(number_of_sample > 2 |
   #            (primary_cancer_site_group == "Breast" & 
-  #            number_of_sample_bf_tmn > 1))
-  filter(number_of_sample_bf_tmn > 2 |
-           primary_cancer_site_group == "Breast")
+  #            number_of_sample > 1))
+  filter(primary_cancer_site_group == "Breast") %>% 
+  filter(interval_sample_to_tmn_days <= 10) %>% 
+  group_by(mrn) %>% 
+  mutate(number_of_sample = n(), .after = blood_vs_tmn_sequence) %>% 
+  ungroup()
 ```
 
 ```{r Labeling data}
@@ -93,7 +94,7 @@ var_label(tmn_blood) <- list(age_at_diagnosis = "Patient age",
                              tmn_histology = "TMN histology",
                              
                              age_at_sample = "Age at first sample",     
-                             number_of_sample_bf_tmn = "Number of sample before TMN"
+                             number_of_sample = "Number of sample"
 )
 ```
 
@@ -159,28 +160,27 @@ var_label(tmn_blood) <- list(age_at_diagnosis = "Patient age",
 ```{r}
 breast_patients <- tmn_blood %>% 
   filter(primary_cancer_site_group == "Breast")
-other_patients <- tmn_blood %>% 
-  filter(primary_cancer_site_group != "Breast")
+# other_patients <- tmn_blood %>% 
+#   filter(primary_cancer_site_group != "Breast")
 ```
 
-We included `r length(unique(other_patients$mrn))` non-breast patients with a minimum of `r min(other_patients$number_of_sample_bf_tmn, na.rm = TRUE)` samples, 
-and `r length(unique(breast_patients$mrn))` breast patients with a minimum of `r min(breast_patients$number_of_sample_bf_tmn, na.rm = TRUE)` samples.
+We included `r length(unique(breast_patients$mrn))` breast patients with a minimum of `r min(breast_patients$number_of_sample, na.rm = TRUE)` samples.
 
 ## Patient Characteristics
 
 ```{r Patient Characteristics}
 tmn_blood %>% 
-  filter(sample_sequence_number == 1 |
-           is.na(sample_sequence_number)) %>% 
-  # mutate(number_of_sample_bf_tmn = factor(number_of_sample_bf_tmn, levels = c("1", "2", "3", "4", "5"))) %>%
+  distinct(mrn, .keep_all = TRUE) %>% 
+  # mutate(number_of_sample = factor(number_of_sample, levels = c("1", "2", "3", "4", "5"))) %>%
   select(age_at_diagnosis, gender_src_desc, race_cr_src_desc_1,
          cdsc_vital_status,
          os_time_from_dx_months,
          
          primary_cancer_treatment_type,
          primary_cancer_site, primary_cancer_site_group,
-         primary_cancer_histology, primary_cancer_grade_clin,
-         primary_cancer_grade_path, primary_cancer_grade_tnm,
+         primary_cancer_histology, #primary_cancer_grade_clin,
+         # primary_cancer_grade_path, 
+         primary_cancer_grade_tnm,
          time_primary_cancer_to_tmn_years,
 
          tmn_site, tmn_site_group, tmn_histology,
@@ -188,14 +188,19 @@ tmn_blood %>%
          age_at_sample,
          `Time from primary cancer to first sample (days)` = interval_primary_cancer_to_samples_days,
          `Time from first sample to TMN (days)` = interval_sample_to_tmn_days,
-         number_of_sample_bf_tmn
+         number_of_sample
          # sample_sequence_number,
          ) %>% 
   tbl_summary(sort = list(c(gender_src_desc, race_cr_src_desc_1, cdsc_vital_status,
                             primary_cancer_treatment_type,
                             primary_cancer_site, primary_cancer_site_group,
                             primary_cancer_histology, primary_cancer_grade_tnm, 
-                            tmn_site_group) ~ "frequency")) %>%
+                            tmn_site_group) ~ "frequency"),
+              type = list(c(age_at_diagnosis, os_time_from_dx_months,
+                            time_primary_cancer_to_tmn_years,
+                            age_at_sample, 
+                            `Time from primary cancer to first sample (days)`,
+                            `Time from first sample to TMN (days)`) ~ "continuous")) %>%
   bold_labels() %>%
   modify_header(label ~ "**Patient characteristics**",
                 all_stat_cols() ~ "**{level}**, N = {n}")
@@ -205,7 +210,7 @@ tmn_blood %>%
 <!-- ## 1.Time between first diagnosis and TMN -->
 <!-- ```{r} -->
 <!-- tmn_blood %>%  -->
-<!--   filter(blood_bf_tmn == "Yes") %>%  -->
+<!--   filter(blood_vs_tmn_sequence == "Yes") %>%  -->
 <!--   filter(sample_sequence_number == 1) %>%  -->
 <!--   ggplot(aes(x = time_dx_tmn))+ -->
 <!--   geom_histogram(binwidth = 7, alpha = 0.9, position = "stack", fill= "orchid") + -->
@@ -215,56 +220,58 @@ tmn_blood %>%
 <!-- ``` -->
 
 ## 1.Time from blood collection to TMN
-I made 2 similar plot for 2 populations to not be over crowded.    
+<!-- I made 2 similar plot for 2 populations to not be over crowded.     -->
 
-For patients with only 1 or 2 samples (all breast patients).
-```{r plotly sample for patients with 1 samples, out.width="100%"}
-pltly <- tmn_blood %>% 
-  filter(number_of_sample_bf_tmn %in% c(1, 2)) %>% 
-  mutate(text = paste("Patient: ", mrn, 
-                      "\nTime from blood collection to TMN (Days): ", interval_sample_to_tmn_days, 
-                      "\nPrimary cancer site group: ", primary_cancer_site_group, 
-                      "\nSample: ", sample_type, 
-                      sep="")) %>%
-  ggplot(aes(y = interval_sample_to_tmn_days, x = sample_sequence_number,
-             color= mrn, group = mrn, text=text))+
-  geom_point(shape = 16) +
-  geom_line()+
-  # scale_y_continuous(labels = c("0" = "TMN = 0", 1000, 2000, 3000, 4000, 5000))+
-  labs(x="Sample number",
-       y="Time from blood collection to TMN (Days)",
-       caption = "Sample 1 is the farthest from TMN - explain why the curves go down")+
-  guides(color = "none")+
-  theme(legend.position = "top"#, 
-        # axis.ticks.x = element_blank(),
-        # axis.text.x = element_blank()
-        )
+<!-- For patients with only 1 or 2 samples (all breast patients). -->
+<!-- ```{r plotly sample for patients with 1 samples, out.width="100%"} -->
+<!-- pltly <- tmn_blood %>%  -->
+<!--   filter(number_of_sample %in% c(1, 2)) %>%  -->
+<!--   mutate(text = paste("Patient: ", mrn,  -->
+<!--                       "\nTime from blood collection to TMN (Days): ", interval_sample_to_tmn_days,  -->
+<!--                       "\nPrimary cancer site group: ", primary_cancer_site_group,  -->
+<!--                       "\nSample: ", sample_type,  -->
+<!--                       sep="")) %>% -->
+<!--   ggplot(aes(y = interval_sample_to_tmn_days, x = sample_sequence_number, -->
+<!--              color= mrn, group = mrn, text=text))+ -->
+<!--   geom_point(shape = 16) + -->
+<!--   geom_line()+ -->
+<!--   # scale_y_continuous(labels = c("0" = "TMN = 0", 1000, 2000, 3000, 4000, 5000))+ -->
+<!--   labs(x="Sample number", -->
+<!--        y="Time from blood collection to TMN (Days)", -->
+<!--        caption = "Sample 1 is the farthest from TMN - explain why the curves go down")+ -->
+<!--   guides(color = "none")+ -->
+<!--   theme(legend.position = "top"#,  -->
+<!--         # axis.ticks.x = element_blank(), -->
+<!--         # axis.text.x = element_blank() -->
+<!--         ) -->
 
-library(plotly)
-pltly <- ggplotly(pltly, tooltip="text")
-pltly
-```
-<br>
+<!-- library(plotly) -->
+<!-- pltly <- ggplotly(pltly, tooltip="text") -->
+<!-- pltly -->
+<!-- ``` -->
+<!-- <br> -->
 
-For patients with 3 samples minimum (breast + others). Breast patients point color is filled.
+<!-- For patients with 3 samples minimum.  -->
+<!-- (breast + others). Breast patients point color is filled. -->
 ```{r plotly sample for patients with more samples, out.width="100%"}
 pltly <- tmn_blood %>% 
-  filter(number_of_sample_bf_tmn > 2) %>% 
+  # filter(number_of_sample > 2) %>% 
   mutate(text = paste("Patient: ", mrn, 
                       "\nTime from blood collection to TMN (Days): ", interval_sample_to_tmn_days, 
                       "\nPrimary cancer site group: ", primary_cancer_site_group, 
                       "\nSample: ", sample_type, 
                       sep="")) %>%
   ggplot(aes(y = interval_sample_to_tmn_days, x = sample_sequence_number,
-             shape= primary_cancer_site_group == "Breast",
+             # shape= primary_cancer_site_group == "Breast",
              color= mrn, group = mrn, text=text))+
   geom_point() +
   geom_line()+
-  # scale_y_continuous(labels = c("0" = "TMN = 0", 1000, 2000, 3000, 4000, 5000))+
+  scale_y_continuous(labels = c(-600, -400, -200, "TMN = 0"
+                                ))+
   labs(x="Sample number",
        y="Time from blood collection to TMN (Days)",
        caption = "Sample 1 is the farthest from TMN - explain why the curves go down")+
-  scale_shape_manual(values=c(1, 16))+
+  # scale_shape_manual(values=c(1, 16))+
   guides(color = "none")+
   theme(legend.position = "top")
 # pltly
@@ -296,7 +303,7 @@ pltly
 <!-- ```{r, fig.height=6} -->
 <!-- tmn_blood %>%  -->
 <!--   filter(sample_sequence_number == 1) %>%  -->
-<!--   ggplot(aes(x= blood_bf_tmn, y = interval_sample_to_tmn_days))+ -->
+<!--   ggplot(aes(x= blood_vs_tmn_sequence, y = interval_sample_to_tmn_days))+ -->
 <!--   geom_boxplot(fill= "blue")+ -->
 <!--   geom_jitter()+ -->
 <!--   labs(y = "Time (Days)", -->
@@ -312,24 +319,26 @@ pltly
 <!-- <br> -->
 
 ```{r}
-tmn_blood %>% 
-  ggplot(aes(x = interval_sample_to_tmn_days, fill= factor(sample_sequence_number)))+
-  geom_histogram(binwidth = 90, alpha = 0.9, position = "stack") +
-  scale_fill_viridis(discrete=T, name = "Sample number")+
-  labs(x="Time from blood collection to TMN (Days - all samples included)",
-       y="Number of patients",
-       caption = "Each bar represents 90 days")
-
-tmn_blood %>% 
-  select(sample_sequence_number,
-         `Time from blood collection to TMN (Days - all samples included)` = interval_sample_to_tmn_days) %>% 
-  tbl_summary(by = sample_sequence_number,
-              statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>% 
-  bold_labels() %>%
-  modify_spanning_header(everything() ~ "Time blood to TMN for each sequential sample")
+# tmn_blood %>% 
+#   ggplot(aes(x = interval_sample_to_tmn_days, fill= factor(sample_sequence_number)))+
+#   geom_histogram(binwidth = 90, alpha = 0.9, position = "stack") +
+#   geom_vline(xintercept = 0, linetype = 2)+
+#   scale_fill_viridis(discrete=T, name = "Sample number")+
+#   labs(x="Time from blood collection to TMN (Days - all samples included)",
+#        y="Number of patients",
+#        caption = "Each bar represents 90 days. <br>
+#        Samples for patients with many collection are collected early and don't cover a wide time span.")
+# 
+# tmn_blood %>% 
+#   select(sample_sequence_number,
+#          `Time from blood collection to TMN (Days - all samples included)` = interval_sample_to_tmn_days) %>% 
+#   tbl_summary(by = sample_sequence_number,
+#               statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>% 
+#   bold_labels() %>%
+#   modify_spanning_header(everything() ~ "Time blood to TMN for each sequential sample")
 ```
 
-## 2.Time from diagnosis to blood collection
+<!-- ## 2.Time from diagnosis to blood collection -->
 <!-- <div class = "row"> -->
 <!-- <div class = "col-md-6"> -->
 <!-- ```{r, fig.height=6} -->
@@ -349,7 +358,7 @@ tmn_blood %>%
 <!-- ```{r, fig.height=6} -->
 <!-- tmn_blood %>%  -->
 <!--   filter(sample_sequence_number == 1) %>%  -->
-<!--   ggplot(aes(x= blood_bf_tmn, y = interval_primary_cancer_to_samples_days))+ -->
+<!--   ggplot(aes(x= blood_vs_tmn_sequence, y = interval_primary_cancer_to_samples_days))+ -->
 <!--   geom_boxplot(fill= "red")+ -->
 <!--   geom_jitter()+ -->
 <!--   labs(y = "Time (Days)", -->
@@ -373,16 +382,16 @@ tmn_blood %>%
 #        y="Number of patients",
 #        caption = "Each bar represents 90 days")
 
-tmn_blood %>% 
-  select(sample_sequence_number,
-         `Time from primary cancer to blood collection (Days)`= interval_primary_cancer_to_samples_days) %>% 
-  tbl_summary(by = sample_sequence_number,
-              statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>% 
-  bold_labels() %>%
-  modify_spanning_header(everything() ~ "Time primary cancer to blood for each sequential sample")
+# tmn_blood %>% 
+#   select(sample_sequence_number,
+#          `Time from primary cancer to blood collection (Days)`= interval_primary_cancer_to_samples_days) %>% 
+#   tbl_summary(by = sample_sequence_number,
+#               statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>% 
+#   bold_labels() %>%
+#   modify_spanning_header(everything() ~ "Time primary cancer to blood for each sequential sample")
 ```
 
-## 3.Time between samples
+<!-- ## 3.Time between samples -->
 ```{r}
 # tmn_blood %>% 
 #   mutate(sample_sequence_number = case_when(
@@ -399,19 +408,19 @@ tmn_blood %>%
 #        y="Number of patients",
 #        caption = "Each bar represents 90 days")
 
-tmn_blood %>% 
-  mutate(sample_sequence_number = case_when(
-    sample_sequence_number == 2             ~ "1-2",
-    sample_sequence_number == 3             ~ "2-3",
-    sample_sequence_number == 4             ~ "3-4",
-    sample_sequence_number == 5             ~ "4-5",
-  )) %>% 
-  select(`Time between each blood collection (days)`= sample_lag_days,
-         sample_sequence_number) %>% 
-  tbl_summary(by = sample_sequence_number,
-              statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>% 
-  bold_labels() %>%
-  modify_spanning_header(everything() ~ "Time between blood for each sequential sample")
+# tmn_blood %>% 
+#   mutate(sample_sequence_number = case_when(
+#     sample_sequence_number == 2             ~ "1-2",
+#     sample_sequence_number == 3             ~ "2-3",
+#     sample_sequence_number == 4             ~ "3-4",
+#     sample_sequence_number == 5             ~ "4-5",
+#   )) %>% 
+#   select(`Time between each blood collection (days)`= sample_lag_days,
+#          sample_sequence_number) %>% 
+#   tbl_summary(by = sample_sequence_number,
+#               statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>% 
+#   bold_labels() %>%
+#   modify_spanning_header(everything() ~ "Time between blood for each sequential sample")
 ```
 
 # List of patients/samples

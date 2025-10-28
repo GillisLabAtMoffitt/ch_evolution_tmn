@@ -9,38 +9,38 @@ theme_gtsummary_compact()
 path_clinical <- fs::path("", "Volumes", "Gillis_Research", "Lab_Data", "CHEvolutionTMN")
 clinical_data <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
-                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
-                           # "/RawData/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
+                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
+                           # "/RawData/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
                     sheet = "Base_Data") %>% 
   clean_names()
 cancer_data <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
-                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
-                    # "/RawData/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
+                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
+                    # "/RawData/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
                     sheet = "Registry_General") %>% 
   clean_names()
 registry_treatment <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
-                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
-                    # "/RawData/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
+                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
+                    # "/RawData/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
                     sheet = "Registry_Treatment") %>% 
   clean_names()
 emr_medication <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
-                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
-                    # "/RawData/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
+                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
+                    # "/RawData/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
                     sheet = "Emr_Medication") %>% 
   clean_names()
 dna_data <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
-                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
-                    # "/RawData/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
+                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
+                    # "/RawData/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
                     sheet = "Biobanking") %>% 
   clean_names()
 molecular_ngs <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
-                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
-                    # "/RawData/CHevolution_CohortRaw_10R25000197_v4_20251007.xlsx"), 
+                           "/data/raw data/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
+                    # "/RawData/CHevolution_CohortRaw_10R25000197_v5_20251024.xlsx"), 
                     sheet = "Molecular_NGS") %>% 
   clean_names()
 
@@ -62,17 +62,18 @@ dna_data <- dna_data %>%
   mutate(mrn = as.character(mrn)) %>% 
   # Select sample type needed for CH detection
   filter(sample_type %in% c(
-    "Buffy Coat", "Genomic DNA","MNC", 
+    "Buffy Coat", "Genomic DNA","MNC", "PBMC",
     "MNC less CD138+", "Unprocessed Liquid Tissue")
   ) %>% 
   select(mrn, sample_family_id, sample_id,
          specimen_collection_dt = collection_dt,
          best_anatomic_site, sample_type) %>%
   # add same sample/same date on the same row
-  arrange(mrn, specimen_collection_dt) %>% 
+  arrange(mrn, specimen_collection_dt, best_anatomic_site) %>% 
   # Summarize to have 1 sample/day per row and not 1 row for each aliquot of the same sample 
   group_by(mrn, sample_family_id, specimen_collection_dt) %>% 
   summarise_at(vars(sample_id, best_anatomic_site, sample_type), str_c, collapse = "; ") %>%
+  arrange(mrn, specimen_collection_dt, best_anatomic_site) %>% 
   group_by(mrn, specimen_collection_dt) %>% 
   summarise_at(vars(sample_family_id, sample_id, best_anatomic_site, sample_type), str_c, collapse = "; ") %>%
   ungroup() #%>% 
@@ -88,31 +89,32 @@ write_rds(dna_data, paste0(here::here(),
 
 set.seed(123)
 clinical_data_1 <- clinical_data %>% 
-  mutate(mrn = as.character(mrn))# %>% 
+  mutate(mrn = as.character(mrn)) %>% 
   # generate de-identy ids
-  # mutate(rad = "ch_evolution_") %>%
-  # group_by(mrn = factor(mrn, levels = sample(unique(mrn)))) %>% 
-  # mutate(random_id = cur_group_id()) %>% 
-  # ungroup() %>%
-  # mutate(zero = 6 - nchar(random_id)) %>%
-  # mutate(add_zero = stringi::stri_dup("0", zero)) %>%
-  # select(c(rad, add_zero, random_id, mrn, everything())) %>%
-  # unite(deidentified_patient_id, rad:random_id, sep = "") %>% 
-  # select(c(deidentified_patient_id, mrn, everything(), -zero))
+  mutate(study_name = "ch_evolution_") %>%
+  group_by(mrn = factor(mrn, levels = sample(unique(mrn)))) %>%
+  mutate(random_id = cur_group_id()) %>%
+  ungroup() %>%
+  mutate(zero = 6 - nchar(random_id)) %>%
+  mutate(add_zero = stringi::stri_dup("0", zero)) %>%
+  select(c(study_name, add_zero, random_id, mrn, everything())) %>%
+  unite(deidentified_patient_id, study_name:random_id, sep = "", remove = FALSE)
 
-# write_csv(clinical_data_1 %>% 
-#             select(mrn, deidentified_patient_id), 
-#           paste0("data/processed_data",
-#                  "/Match MRN and de-identified ids for the ch_evolution project before filtering", 
-#                  today(), ".csv"))
-# write_csv(clinical_data_1 %>% 
-#             select(mrn, deidentified_patient_id), 
-#           paste0(path_clinical, "/ProcessedData",
-#                  "/Match MRN and de-identified ids for the ch_evolution project before filtering", 
-#                  today(), ".csv"))
+write_csv(clinical_data_1 %>%
+            select(mrn, deidentified_patient_id, random_id),
+          paste0("data/processed_data",
+                 "/CHevolution_Match_mrn_and_deidentified_ids_for_the_CHevolution_project_before_filtering",
+                 today(), ".csv"))
+write_csv(clinical_data_1 %>%
+            select(mrn, deidentified_patient_id, random_id),
+          paste0(path_clinical, "/ProcessedData",
+                 "/CHevolution_Match_mrn_and_deidentified_ids_for_the_CHevolution_project_before_filtering",
+                 today(), ".csv"))
 
 
-clinical_data_1 <- clinical_data_1 %>% 
+clinical_data_1 <- clinical_data_1 %>%
+  # Clean up var created for coding de-id ids
+  select(c(deidentified_patient_id, mrn, everything(), -c(zero, study_name, add_zero))) %>% 
   # Filtered out patients without blood samples of interest
   # filter(str_detect(mrn, paste0(dna_data$mrn, collapse = "|"))) %>% 
   select(#deidentified_patient_id, 
@@ -144,22 +146,21 @@ cancer_data <- cancer_data %>%
 
 # Patient exclusion based on histology info
 cancer_data %>% 
-  filter(tumor_seq_num == "01") %>% 
+  filter(tumor_seq_num == "1") %>% 
   select(histology_desc, primary_site_group_desc) %>% 
   tbl_summary(sort = everything() ~ "frequency")
 
 cancer_data1 <- cancer_data %>%
-  # # Verify tumor_seq_num - good but remove diagnosis 60 as it is non cancer dx -
-  # mutate(tumor_seq_num = as.numeric(tumor_seq_num)) %>% 
-  # group_by(mrn) %>% 
-  # mutate(tumor_seq_num_verified = row_number(), # There is 3 ~wrong~ patient with a tumor_seq_num == 60 
-  #        .after = tumor_seq_num) %>% 
-  # ungroup() %>% 
+  # Verify tumor_seq_num - 1 is wrongly coded as 0 + remove diagnosis 60 as it is non cancer dx -
   filter(tumor_seq_num != 60) %>% 
+  group_by(mrn) %>%
+  mutate(tumor_seq_num = row_number(), # There is 3 ~wrong~ patient with a tumor_seq_num == 60
+         .after = tumor_seq_num) %>%
+  ungroup() %>%
   # select(-tumor_seq_num) %>% 
   # Exclude patients who only had myeloid diseases
   mutate(exclude = case_when(
-    tumor_seq_num == "01" &
+    tumor_seq_num == "1" &
       histology_desc %in% c(
         "REFRACTORY ANEMIA WITH EXCESS BLASTS", 
         "MYELODYSPLASTIC SYNDROME NOS", 
@@ -173,7 +174,7 @@ cancer_data1 <- cancer_data %>%
   select(-exclude)
   
 cancer_data1 %>% 
-  filter(tumor_seq_num != "01") %>% 
+  filter(tumor_seq_num != "1") %>% 
   # filter(primary_site_group_desc != "BLADDER",
   #        primary_site_group_desc != "BREAST",
   #        primary_site_group_desc != "MELANOMA OF SKIN",
@@ -244,28 +245,28 @@ cancer_data1 <- cancer_data1 %>%
             ., 
             by = "mrn") %>% 
   mutate(primary_cancer_site = case_when(
-    tumor_seq_num == "01"                                  ~ primary_site_desc
+    tumor_seq_num == "1"                                  ~ primary_site_desc
   )) %>%
   mutate(primary_cancer_site_group = case_when(
-    tumor_seq_num == "01"                                  ~ primary_site_group_desc
+    tumor_seq_num == "1"                                  ~ primary_site_group_desc
   )) %>%
   mutate(primary_cancer_histology_code = case_when(
-    tumor_seq_num == "01"                                  ~ histology_cd
+    tumor_seq_num == "1"                                  ~ histology_cd
   )) %>%
   mutate(primary_cancer_histology = case_when(
-    tumor_seq_num == "01"                                  ~ histology_desc
+    tumor_seq_num == "1"                                  ~ histology_desc
   )) %>%
   mutate(primary_cancer_dt = case_when(
-    tumor_seq_num == "01"                                  ~ dx_dt
+    tumor_seq_num == "1"                                  ~ dx_dt
   )) %>%
   mutate(primary_cancer_grade_clin = case_when(
-    tumor_seq_num == "01"                                  ~ grade_clinical_desc
+    tumor_seq_num == "1"                                  ~ grade_clinical_desc
   )) %>%
   mutate(primary_cancer_grade_path = case_when(
-    tumor_seq_num == "01"                                  ~ grade_pathological_desc
+    tumor_seq_num == "1"                                  ~ grade_pathological_desc
   )) %>%
   mutate(primary_cancer_grade_tnm = case_when(
-    tumor_seq_num == "01"                                  ~ stage_tnm_cs_mixed_group_desc
+    tumor_seq_num == "1"                                  ~ stage_tnm_cs_mixed_group_desc
   )) %>%
   # mutate(is_tmn_dx = case_when(
   #   dx_dt == first_myeloid_dx_dt                                    ~ "Yes"
@@ -395,7 +396,8 @@ tmn_patients <- dna_data %>%
                                     duration(n = 1, units = "years"), 1)
   ) %>%
   mutate(age_at_sample = round(interval(start = birth_dt, end = specimen_collection_dt)/
-                                 duration(n = 1, units = "years"), 1)
+                                 duration(n = 1, units = "years"), 1),
+         .after = specimen_collection_dt
   ) %>% 
   mutate(time_primary_cancer_to_tmn_years = round(interval(start = primary_cancer_dt, end = tmn_dx_dt)/
                                  duration(n = 1, units = "years"), 1)
@@ -409,63 +411,73 @@ tmn_patients <- dna_data %>%
   mutate(os_time_from_dx_months = interval(start = primary_cancer_dt,
                                            end = last_contact_or_death_dt)/
            duration(n = 1, unit = "months"),
-         .after = os_event)
+         .after = os_event) %>% 
+  mutate(os_time_from_firsttx_months = interval(start = primary_cancer_treatment_start_dt,
+                                           end = last_contact_or_death_dt)/
+           duration(n = 1, unit = "months"),
+         .after = os_event) %>% 
   
-write_rds(tmn_patients, "all_patients_with_tmn.rds")
+  mutate(across(c(where(is_character),
+                  -sample_id, -sample_type, 
+                  -sample_family_id, 
+                  -primary_cancer_treatment_type), ~ str_to_sentence(.)))
+
+write_rds(tmn_patients, 
+          paste0("data/processed_data",
+                 "/all_cancer_type_patients_with_tmn", 
+                 str_remove_all(today(), "-"), ".rds"))
 
 
 ################################################################################# IV ### Find samples
+tmn_patients <- 
+  read_rds(paste0(here::here(), 
+                  "/data/processed_data",
+                  "/all_cancer_type_patients_with_tmn20251028.rds"))
+
 tmn_blood <- tmn_patients %>% 
-  mutate(blood_bf_tmn = case_when(
-    specimen_collection_dt <= tmn_dx_dt                ~ "Yes",
-    specimen_collection_dt > tmn_dx_dt                 ~ "No",
+  mutate(blood_vs_tmn_sequence = case_when(
+    specimen_collection_dt < tmn_dx_dt                 ~ "Sample before TMN",
+    specimen_collection_dt == tmn_dx_dt                ~ "Sample at TMN",
+    specimen_collection_dt > tmn_dx_dt                 ~ "Sample after TMN",
     is.na(tmn_dx_dt)                                   ~ "No TMN",
-    TRUE                                                 ~ NA_character_
+    TRUE                                               ~ NA_character_
   ), .after = sample_family_id) %>% 
-  group_by(mrn, blood_bf_tmn) %>% 
-  mutate(number_of_sample_bf_tmn = case_when(
-    blood_bf_tmn == "Yes"                                ~ n()
-  ), .after = blood_bf_tmn) %>% 
-  mutate(sample_sequence_number = case_when(
-    blood_bf_tmn == "Yes"                                ~ row_number()
-  ), .after = blood_bf_tmn) %>% 
+  group_by(mrn) %>% 
+  # mutate(number_of_sample_bf_tmn = case_when(
+  #   blood_vs_tmn_sequence == "Yes"                                ~ n()
+  # ), .after = blood_vs_tmn_sequence) %>% 
+  mutate(sample_sequence_number = row_number(),
+         .after = blood_vs_tmn_sequence) %>% 
   ungroup() %>% 
-  arrange(mrn, specimen_collection_dt, blood_bf_tmn) %>% 
+  arrange(mrn, specimen_collection_dt, blood_vs_tmn_sequence) %>% 
   group_by(mrn) %>%
   mutate(sample_lag_days = as.Date(specimen_collection_dt) - lag(as.Date(specimen_collection_dt)),
          sample_lag_days = as.numeric(str_remove(sample_lag_days, " days")),
          .after = sample_sequence_number
   ) %>% 
   ungroup() %>% 
-  mutate(interval_sample_to_tmn_days = case_when(
-    blood_bf_tmn == "Yes"  ~
-          (interval(start = specimen_collection_dt, end = tmn_dx_dt) /
-                     duration(n = 1, units = "days"))
-      ), .after = sample_lag_days) %>%
-  mutate(interval_primary_cancer_to_samples_days = case_when(
-    blood_bf_tmn == "Yes"  ~
-      (interval(start = primary_cancer_dt, end = specimen_collection_dt) /
-         duration(n = 1, units = "days"))
-  ), .after = sample_lag_days) %>% 
+  mutate(interval_sample_to_tmn_days = interval(start = specimen_collection_dt, end = tmn_dx_dt) /
+           duration(n = 1, units = "days"),
+         .after = sample_lag_days) %>%
+  mutate(interval_primary_cancer_to_samples_days = interval(start = primary_cancer_dt, end = specimen_collection_dt) /
+           duration(n = 1, units = "days"),
+         .after = sample_lag_days) %>% 
   mutate(has_dna_sample = case_when(
     has_dna_sample == "Yes"             ~ "Yes",
     is.na(has_dna_sample)               ~ "No"
-  )) %>% 
-  select(mrn, has_dna_sample, 
-         number_of_sample_bf_tmn,
-         everything())
+  ))
 
 write_csv(tmn_blood, 
           paste0("data/processed_data",
-                 "/CHevolution_all_patients_with_tmn_", 
+                 "/CHevolution_all_cancer_type_patients_with_tmn_", 
                  str_remove_all(today(), "-"), ".csv"))
 write_csv(tmn_blood, 
           paste0(path_clinical, "/ProcessedData",
-                 "/CHevolution_all_patients_with_tmn_", 
+                 "/CHevolution_all_cancer_type_patients_with_tmn_", 
                  str_remove_all(today(), "-"), ".csv"))
 write_rds(tmn_blood, 
           paste0("data/processed_data",
-                 "/CHevolution_all_patients_with_tmn_", 
+                 "/CHevolution_all_cancer_type_patients_with_tmn_", 
                  str_remove_all(today(), "-"), ".rds"))
 
 
@@ -476,6 +488,42 @@ emr_medication <- emr_medication %>%
 
 registry_treatment <- registry_treatment %>% 
   mutate(mrn = as.character(mrn))
+
+
+################################################################################# VI ### Samples list
+tmn_blood <-
+  read_rds(paste0(here::here(), 
+                  "/data/processed_data",
+                  "/CHevolution_all_cancer_type_patients_with_tmn_20251028.rds"))
+
+breast_samples <- tmn_blood %>%
+  filter(primary_cancer_site_group == "Breast") %>% 
+  filter(interval_sample_to_tmn_days <= 10)
+
+write_csv(breast_samples %>% select(mrn, sample_sequence_number, sample_id,
+                               sample_family_id, interval_sample_to_tmn_days,
+                               specimen_collection_dt,
+                               best_anatomic_site, sample_type),
+          paste0("data/processed_data",
+                 "/CHevolution_breast_patients_sampleslist_at_or_after_TMN_dx_", 
+                 str_remove_all(today(), "-"), ".csv"))
+write_csv(breast_samples %>% select(mrn, sample_sequence_number, sample_id,
+                                    sample_family_id, interval_sample_to_tmn_days,
+                                    specimen_collection_dt,
+                                    best_anatomic_site, sample_type),
+          paste0(path_clinical, "/ProcessedData",
+                 "/CHevolution_breast_patients_sampleslist_at_or_after_TMN_dx_", 
+                 str_remove_all(today(), "-"), ".csv"))
+
+
+
+
+
+
+
+
+
+
 
 
 
