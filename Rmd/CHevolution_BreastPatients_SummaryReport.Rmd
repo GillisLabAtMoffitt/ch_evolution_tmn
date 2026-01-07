@@ -1,0 +1,253 @@
+---
+title: "Breast patients with TMN"
+author: "Christelle Colin-Leitzinger"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    theme: united
+    highlight: pygments
+    df_print: paged
+    code_folding: hide
+editor_options:
+  chunk_output_type: console
+---
+
+<style type= "text/css">
+
+. figure {
+   margin-top: 25px;
+   margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+```
+
+```{r library}
+library(tidyverse)
+library(gtsummary)
+library(labelled)
+library(viridis)
+library(kableExtra)
+theme_set(theme_classic())
+theme_gtsummary_compact()
+```
+
+```{r load}
+tmn_blood <-
+  read_rds(paste0(here::here(), 
+                  "/data/processed_data",
+                  "/CHevolution_BreastSamples_20260107.rds"))
+
+path_clinical <- fs::path("", "Volumes", "Gillis_Research", "Lab_Data", "CHEvolutionTMN")
+
+tmn_blood <- tmn_blood %>%
+  group_by(mrn) %>% 
+  mutate(number_of_sample = n(), .after = blood_vs_tmn_sequence) %>% 
+  ungroup()
+```
+
+```{r Labeling data}
+var_label(tmn_blood) <- list(age_at_diagnosis = "Patient age", 
+                             gender_src_desc = "Sex",
+                             race_cr_src_desc_1 = "Race", 
+                             cdsc_vital_status = "Vital status", 
+                             os_time_from_dx_months = "Follow-up time (months)",
+                             primary_cancer_treatment_type = "Primary cancer treatment type",
+                             primary_cancer_site = "Primary cancer site", 
+                             primary_cancer_site_group = "Primary cancer site group",
+                             primary_cancer_histology = "Primary cancer histology", 
+                             primary_cancer_grade_clin = "Primary cancer clinical grade (need abstraction)",
+                             primary_cancer_grade_path = "Primary cancer pathological grade (need abstraction)", 
+                             primary_cancer_grade_tnm = "Primary cancer TNM stage (need abstraction)",
+                             time_primary_cancer_to_tmn_years = "Time primary cancer to TMN (years)",
+         
+                             tmn_site = "TMN site", 
+                             tmn_site_group = "TMN site group", 
+                             tmn_histology = "TMN histology",
+                             has_dna_sample = "Patient with at least 1 DNA sample",
+                             age_at_sample = "Age at first sample",     
+                             number_of_sample = "Number of sample"
+)
+```
+
+## Patient Characteristics
+
+```{r Patient Characteristics}
+tmn_blood %>% 
+  distinct(mrn, .keep_all = TRUE) %>% 
+  # mutate(number_of_sample = factor(number_of_sample, levels = c("1", "2", "3", "4", "5"))) %>%
+  select(has_dna_sample, 
+         age_at_diagnosis, gender_src_desc, race_cr_src_desc_1,
+         cdsc_vital_status,
+         os_time_from_dx_months,
+         
+         primary_cancer_treatment_type,
+         primary_cancer_site, primary_cancer_site_group,
+         primary_cancer_histology, #primary_cancer_grade_clin,
+         # primary_cancer_grade_path, 
+         primary_cancer_grade_tnm,
+         time_primary_cancer_to_tmn_years,
+
+         tmn_site, tmn_site_group, tmn_histology,
+
+         age_at_sample,
+         `Time from primary cancer to first sample (days)` = interval_primary_cancer_to_sample_days,
+         `Time from first sample to TMN (days)` = interval_tmn_to_sample_days,
+         number_of_sample
+         # sample_sequence_number,
+         ) %>% 
+  tbl_summary(sort = list(c(gender_src_desc, race_cr_src_desc_1, cdsc_vital_status,
+                            primary_cancer_treatment_type,
+                            primary_cancer_site, primary_cancer_site_group,
+                            primary_cancer_histology, primary_cancer_grade_tnm, 
+                            tmn_site_group) ~ "frequency"),
+              type = list(c(age_at_diagnosis, os_time_from_dx_months,
+                            time_primary_cancer_to_tmn_years,
+                            age_at_sample, 
+                            `Time from primary cancer to first sample (days)`,
+                            `Time from first sample to TMN (days)`) ~ "continuous")) %>%
+  bold_labels() %>%
+  modify_header(label ~ "**Patient characteristics**",
+                all_stat_cols() ~ "**{level}**, N = {n}")
+```
+<br>
+
+<!-- ## 1.Time between first diagnosis and TMN -->
+<!-- ```{r} -->
+<!-- tmn_blood %>% -->
+<!--   filter(blood_vs_tmn_sequence == "Yes") %>% -->
+<!--   filter(sample_sequence_number == 1) %>% -->
+<!--   ggplot(aes(x = time_dx_tmn))+ -->
+<!--   geom_histogram(binwidth = 7, alpha = 0.9, position = "stack", fill= "orchid") + -->
+<!--   labs(x="Time between first diagnosis and TMN (Days)", -->
+<!--        y="Number of patients", -->
+<!--        caption = "Each bar represents 7 days") -->
+<!-- ``` -->
+
+## 1.Time from blood collection to TMN
+<!-- I made 2 similar plot for 2 populations to not be over crowded.     -->
+
+<!-- For patients with only 1 or 2 samples (all breast patients). -->
+<!-- ```{r plotly sample for patients with 1 samples, out.width="100%"} -->
+<!-- pltly <- tmn_blood %>%  -->
+<!--   filter(number_of_sample %in% c(1, 2)) %>%  -->
+<!--   mutate(text = paste("Patient: ", mrn,  -->
+<!--                       "\nTime from blood collection to TMN (Days): ", interval_tmn_to_sample_days,  -->
+<!--                       "\nPrimary cancer site group: ", primary_cancer_site_group,  -->
+<!--                       "\nSample: ", sample_type,  -->
+<!--                       sep="")) %>% -->
+<!--   ggplot(aes(y = interval_tmn_to_sample_days, x = sample_sequence_number, -->
+<!--              color= mrn, group = mrn, text=text))+ -->
+<!--   geom_point(shape = 16) + -->
+<!--   geom_line()+ -->
+<!--   # scale_y_continuous(labels = c("0" = "TMN = 0", 1000, 2000, 3000, 4000, 5000))+ -->
+<!--   labs(x="Sample number", -->
+<!--        y="Time from blood collection to TMN (Days)", -->
+<!--        caption = "Sample 1 is the farthest from TMN - explain why the curves go down")+ -->
+<!--   guides(color = "none")+ -->
+<!--   theme(legend.position = "top"#,  -->
+<!--         # axis.ticks.x = element_blank(), -->
+<!--         # axis.text.x = element_blank() -->
+<!--         ) -->
+
+<!-- library(plotly) -->
+<!-- pltly <- ggplotly(pltly, tooltip="text") -->
+<!-- pltly -->
+<!-- ``` -->
+<!-- <br> -->
+
+<!-- For patients with 3 samples minimum.  -->
+<!-- (breast + others). Breast patients point color is filled. -->
+```{r plotly sample for patients with more samples, out.width="100%"}
+pltly <- tmn_blood %>% 
+  # filter(number_of_sample > 2) %>% 
+  mutate(text = paste("Patient: ", mrn, 
+                      "\nTime from blood collection to TMN (Days): ", interval_tmn_to_sample_days, 
+                      "\nPrimary cancer site group: ", primary_cancer_site_group, 
+                      "\nSample: ", cdsc_sample_type, 
+                      sep="")) %>%
+  ggplot(aes(y = interval_tmn_to_sample_days, x = sample_sequence_number,
+             # shape= primary_cancer_site_group == "Breast",
+             color= mrn, group = mrn, text=text))+
+  geom_point() +
+  geom_line()+
+  # scale_y_continuous(labels = c(-600, -400, -200, "TMN = 0"
+  #                               ))+
+  labs(x="Sample number",
+       y="Time from blood collection to TMN (Days)",
+       caption = "Sample 1 is the farthest from TMN - explain why the curves go down")+
+  # scale_shape_manual(values=c(1, 16))+
+  guides(color = "none")+
+  theme(legend.position = "top")
+# pltly
+
+library(plotly)
+pltly <- ggplotly(pltly, tooltip="text")
+pltly
+```
+<br>
+
+
+
+
+
+
+```{r}
+tmn_blood %>%
+  ggplot(aes(x = interval_tmn_to_sample_days, fill= factor(sample_sequence_number)))+
+  geom_histogram(binwidth = 90, alpha = 0.9, position = "stack") +
+  geom_vline(xintercept = 0, linetype = 2)+
+  scale_fill_viridis(discrete=T, name = "Sample number")+
+  labs(x="Time from blood collection to TMN (Days - all samples included)",
+       y="Number of patients",
+       caption = "Each bar represents 90 days. <br>
+       Samples for patients with many collection are collected early and don't cover a wide time span.")
+
+tmn_blood %>%
+  select(sample_sequence_number,
+         `Time from blood collection to TMN (Days - all samples included)` = interval_tmn_to_sample_days) %>%
+  tbl_summary(by = sample_sequence_number,
+              statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>%
+  bold_labels() %>%
+  modify_spanning_header(everything() ~ "Time blood to TMN for each sequential sample")
+```
+
+
+
+<br>
+
+```{r}
+tmn_blood %>%
+  ggplot(aes(x = interval_primary_cancer_to_sample_days, fill= factor(sample_sequence_number)))+
+  geom_histogram(binwidth = 90, alpha = 0.9, position = "stack") +
+  scale_fill_viridis(discrete=T, name = "Sample number")+
+  labs(x="Time from Diagnosis to blood collection (Days - all samples included)",
+       y="Number of patients",
+       caption = "Each bar represents 90 days")
+
+tmn_blood %>%
+  select(sample_sequence_number,
+         `Time from primary cancer to blood collection (Days)`= interval_primary_cancer_to_sample_days) %>%
+  tbl_summary(by = sample_sequence_number,
+              statistic = list(all_continuous() ~ "{median} ({min}, {max})")) %>%
+  bold_labels() %>%
+  modify_spanning_header(everything() ~ "Time primary cancer to blood for each sequential sample")
+```
+
+
+
