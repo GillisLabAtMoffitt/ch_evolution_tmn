@@ -88,7 +88,7 @@ write_rds(dna_data, paste0(here::here(),
                            "/dna_data_", today(),".rds"))
 
 set.seed(123)
-clinical_data_1 <- clinical_data %>% 
+clinical_data_1 <- clinical_data %>% # will not be in the sample data
   mutate(mrn = as.character(mrn)) %>% 
   # generate de-identy ids
   mutate(study_name = "ch_evolution_") %>%
@@ -100,16 +100,16 @@ clinical_data_1 <- clinical_data %>%
   select(c(study_name, add_zero, random_id, mrn, everything())) %>%
   unite(deidentified_patient_id, study_name:random_id, sep = "", remove = FALSE)
 
-write_csv(clinical_data_1 %>%
-            select(mrn, deidentified_patient_id, random_id),
-          paste0("data/processed_data",
-                 "/CHevolution_Match_mrn_and_deidentified_ids_for_the_CHevolution_project_before_filtering",
-                 today(), ".csv"))
-write_csv(clinical_data_1 %>%
-            select(mrn, deidentified_patient_id, random_id),
-          paste0(path_clinical, "/ProcessedData",
-                 "/CHevolution_Match_mrn_and_deidentified_ids_for_the_CHevolution_project_before_filtering",
-                 today(), ".csv"))
+# write_csv(clinical_data_1 %>%
+#             select(mrn, deidentified_patient_id, random_id),
+#           paste0("data/processed_data",
+#                  "/CHevolution_Match_mrn_and_deidentified_ids_for_the_CHevolution_project_before_filtering",
+#                  today(), ".csv"))
+# write_csv(clinical_data_1 %>%
+#             select(mrn, deidentified_patient_id, random_id),
+#           paste0(path_clinical, "/ProcessedData",
+#                  "/CHevolution_Match_mrn_and_deidentified_ids_for_the_CHevolution_project_before_filtering",
+#                  today(), ".csv"))
 
 
 clinical_data_1 <- clinical_data_1 %>%
@@ -154,7 +154,7 @@ cancer_data1 <- cancer_data %>%
   # Verify tumor_seq_num - 1 is wrongly coded as 0 + remove diagnosis 60 as it is non cancer dx -
   filter(tumor_seq_num != 60) %>% 
   group_by(mrn) %>%
-  mutate(tumor_seq_num = row_number(), # There is 3 ~wrong~ patient with a tumor_seq_num == 60
+  mutate(tumor_seq_num = row_number(),
          .after = tumor_seq_num) %>%
   ungroup() %>%
   # select(-tumor_seq_num) %>% 
