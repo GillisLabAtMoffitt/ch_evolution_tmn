@@ -37,6 +37,12 @@ dna_data <-
                     # "/RawData/CHevolution_CohortRaw_10R25000313_v6_20251110.xlsx"), 
                     sheet = "Biobanking") %>% 
   clean_names()
+dna_data1 <-
+  read_csv(paste0(here::here(), #path_clinical, 
+                           "/data/raw data/CHevolution_ManuallyAddedSample_byCCL_20260120.csv")
+                    # "/RawData/CHevolution_ManuallyAddedSample_byCCL_20260120.csv")
+                    )
+
 molecular_ngs <-
   readxl::read_xlsx(paste0(here::here(), #path_clinical, 
                            "/data/raw data/CHevolution_CohortRaw_10R25000313_v6_20251110.xlsx"), 
@@ -62,6 +68,7 @@ samples_received <-
 
 ###################################################################### II ### Data claening
 dna_data <- dna_data %>% 
+  bind_rows(., dna_data1) %>%
   mutate(mrn = as.character(mrn)) %>% 
   # Include only sample available for research
   filter(sample_available_for_research_indicator == "TRUE") %>% 
@@ -105,16 +112,16 @@ clinical_data_1 <- clinical_data %>%
   select(c(study_name, add_zero, random_id, mrn, everything())) %>%
   unite(deidentified_patient_id, study_name:random_id, sep = "", remove = FALSE)
 
-# write_csv(clinical_data_1 %>%
-#             select(mrn, deidentified_patient_id, random_id),
-#           paste0("data/processed_data",
-#                  "/CHevolution_MatchMRN_DeidentifiedIds_for_CHEvolution_project_before_filtering",
-#                  str_remove_all(today(), "-"), ".csv"))
-# write_csv(clinical_data_1 %>%
-#             select(mrn, deidentified_patient_id, random_id),
-#           paste0(path_clinical, "/ProcessedData",
-#                  "/CHevolution_MatchMRN_DeidentifiedIds_for_CHEvolution_project_before_filtering",
-#                  str_remove_all(today(), "-"), ".csv"))
+write_csv(clinical_data_1 %>%
+            select(mrn, deidentified_patient_id, random_id),
+          paste0("data/processed_data",
+                 "/CHevolution_MatchMRN_DeidentifiedIds_for_CHEvolution_project_before_filtering",
+                 str_remove_all(today(), "-"), ".csv"))
+write_csv(clinical_data_1 %>%
+            select(mrn, deidentified_patient_id, random_id),
+          paste0(path_clinical, "/ProcessedData",
+                 "/CHevolution_MatchMRN_DeidentifiedIds_for_CHEvolution_project_before_filtering",
+                 str_remove_all(today(), "-"), ".csv"))
 
 
 # The clinical has multiple row per patients due to different samples included in the data
@@ -355,7 +362,7 @@ write_rds(tmn_patients,
 tmn_patients <- 
   read_rds(paste0(here::here(), 
                   "/data/processed_data",
-                  "/all_cancer_type_patients_with_tmn_20260107.rds"))
+                  "/all_cancer_type_patients_with_tmn_20260120.rds"))
 
 tmn_blood <- tmn_patients %>% 
   mutate(blood_vs_tmn_sequence = case_when(
@@ -414,7 +421,7 @@ registry_treatment <- registry_treatment %>%
 tmn_blood <-
   read_rds(paste0(here::here(), 
                   "/data/processed_data",
-                  "/CHevolution_AllPtswTMN_20260107.rds"))
+                  "/CHevolution_AllPtswTMN_20260120.rds"))
 
 breast_samples <- tmn_blood %>%
   filter(primary_cancer_site_group == "Breast") #%>% 
