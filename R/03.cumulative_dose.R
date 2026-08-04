@@ -86,7 +86,6 @@ treatment_dose1 <-
   # group_by(drug) %>% 
   # mutate(munber_of_time_received_in_cohort = n()) %>% 
   ungroup() %>% 
-    
   # Create sample range filter
   select(mrn, contains("collection_dt"), drug, dose, weight_adjusted_dose, drug_tertile_sample1_to_last, tx_start, tx_end) |> 
   # Then use tx_start or it will exclude 1 treatment that start before sample 2 and end after sample 2 
@@ -123,12 +122,6 @@ treatment_dose1 <-
       is.na(range_sample5_sample6) &
       tx_start <= sample7_collection_dt                  ~ "Yes"
   )) |> 
-
-    
-    
-    
-    
-    
   select(mrn, weight_adjusted_dose, drug, 
          drug_tertile_sample1_to_last, contains("range_")#,
          # munber_of_time_received_by_patient, munber_of_time_received_in_cohort
@@ -138,49 +131,95 @@ treatment_dose1 <-
   mutate(drug = case_when(
     drug == "nab-paclitaxel"             ~ "paclitaxel",
     TRUE                                 ~ drug
-  )) %>%
+  )) %>% 
   # Add Bolton categories
   left_join(., drug_class, 
-            by = c("drug" = "drug_name")) %>% 
-  # calculate class patient's score - sum scores for each drug in a specific drug class for a patient
-  group_by(mrn, narrow_drug_class_cytotoxic_only) %>% 
-  mutate(class_score_sample1_to_last = case_when(
+            by = c("drug" = "drug_name"))
+
+treatment_general_class_dose <- treatment_dose1 |> 
+  # calculate class patient's score - sum scores for each drug in a specific general drug class for a patient
+  group_by(mrn, general_drug_class) %>% 
+  mutate(general_class_score_sample1_to_last = case_when(
     !is.na(drug_tertile_sample1_to_last)                  ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) %>% 
+  group_by(mrn, general_drug_class, range_before_sample2) %>% 
+  mutate(general_class_score_sample1_to_sample2 = case_when(
+    !is.na(drug_tertile_sample1_to_last) &
+      range_before_sample2 == "Yes"                       ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
+  group_by(mrn, general_drug_class, range_sample2_sample3) %>% 
+  mutate(general_class_score_sample2_to_sample3 = case_when(
+    !is.na(drug_tertile_sample1_to_last) &
+      range_sample2_sample3 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
+  group_by(mrn, general_drug_class, range_sample3_sample4) %>% 
+  mutate(general_class_score_sample3_to_sample4 = case_when(
+    !is.na(drug_tertile_sample1_to_last) &
+      range_sample3_sample4 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
+  group_by(mrn, general_drug_class, range_sample4_sample5) %>% 
+  mutate(general_class_score_sample4_to_sample5 = case_when(
+    !is.na(drug_tertile_sample1_to_last) &
+      range_sample4_sample5 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
+  group_by(mrn, general_drug_class, range_sample5_sample6) %>% 
+  mutate(general_class_score_sample5_to_sample6 = case_when(
+    !is.na(drug_tertile_sample1_to_last) &
+      range_sample5_sample6 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
+  group_by(mrn, general_drug_class, range_sample6_sample7) %>% 
+  mutate(general_class_score_sample6_to_sample7 = case_when(
+    !is.na(drug_tertile_sample1_to_last) &
+      range_sample6_sample7 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
+  group_by(mrn, general_drug_class) |> 
+  fill(contains("general_class_score"), .direction = "updown") |> 
+  ungroup() |> 
+  # Keep 1 score per class per patient
+  distinct(mrn, general_drug_class, .keep_all = TRUE) %>% 
+  select(-c(drug, weight_adjusted_dose, drug_tertile_sample1_to_last, narrow_drug_class_cytotoxic_only,
+            starts_with("range_"))) 
+  
+  
+treatment_narrow_class_dose <- treatment_dose1 |> 
+  # calculate class patient's score - sum scores for each drug in a specific narrow drug class for a patient
+  group_by(mrn, narrow_drug_class_cytotoxic_only) %>% 
+  mutate(narrow_class_score_sample1_to_last = case_when(
+    !is.na(drug_tertile_sample1_to_last)                  ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
+  )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only, range_before_sample2) %>% 
-  mutate(class_score_before_sample2 = case_when(
+  mutate(narrow_class_score_sample1_to_sample2 = case_when(
     !is.na(drug_tertile_sample1_to_last) &
       range_before_sample2 == "Yes"                       ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only, range_sample2_sample3) %>% 
-  mutate(class_score_sample2_to_sample3 = case_when(
+  mutate(narrow_class_score_sample2_to_sample3 = case_when(
     !is.na(drug_tertile_sample1_to_last) &
       range_sample2_sample3 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only, range_sample3_sample4) %>% 
-  mutate(class_score_sample3_to_sample4 = case_when(
+  mutate(narrow_class_score_sample3_to_sample4 = case_when(
     !is.na(drug_tertile_sample1_to_last) &
       range_sample3_sample4 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only, range_sample4_sample5) %>% 
-  mutate(class_score_sample4_to_sample5 = case_when(
+  mutate(narrow_class_score_sample4_to_sample5 = case_when(
     !is.na(drug_tertile_sample1_to_last) &
       range_sample4_sample5 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only, range_sample5_sample6) %>% 
-  mutate(class_score_sample5_to_sample6 = case_when(
+  mutate(narrow_class_score_sample5_to_sample6 = case_when(
     !is.na(drug_tertile_sample1_to_last) &
       range_sample5_sample6 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only, range_sample6_sample7) %>% 
-  mutate(class_score_sample6_to_sample7 = case_when(
+  mutate(narrow_class_score_sample6_to_sample7 = case_when(
     !is.na(drug_tertile_sample1_to_last) &
       range_sample6_sample7 == "Yes"                      ~ sum(drug_tertile_sample1_to_last, na.rm = TRUE)
   )) |> 
   group_by(mrn, narrow_drug_class_cytotoxic_only) |> 
-  fill(contains("class_score"), .direction = "updown") |> 
+  fill(contains("narrow_class_score"), .direction = "updown") |> 
   ungroup() |> 
-
   # Keep 1 score per class per patient
   distinct(mrn, narrow_drug_class_cytotoxic_only, .keep_all = TRUE) %>% 
   select(-c(drug, weight_adjusted_dose, drug_tertile_sample1_to_last, general_drug_class,
@@ -289,37 +328,44 @@ radiation_dose1 <-
     !is.na(rad_eqd2_tertile) &
       range_sample6_sample7 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
   )) |> 
-  # Approach 1 -1 tertile for cumulative dose over all ranges
-  group_by(mrn) %>% 
-  mutate(cumulative_dose_sample1_to_last = sum(eqd2, na.rm = TRUE)) %>% 
-  ungroup() %>% 
-  # Approach 1 -1 tertile over cumulative dose 
-  arrange(mrn, cumulative_dose_sample1_to_last) |> 
-  select(-c(tx_start, tx_end, rad_site : sample7_collection_dt)) |> 
-  group_by(mrn, across(contains("range_")), across(contains("rad_score")), cumulative_dose_sample1_to_last) |> 
-  summarise_at(vars(eqd2, rad_eqd2_tertile), str_c, collapse = " + ") %>% 
   ungroup() |> 
-  
-  # distinct(mrn, .keep_all = TRUE) %>% # Used summarize instead
-  # select(mrn, cumulative_dose_sample1_to_last) %>% 
-  # create tertile categories
-  mutate(tertile_cumdose = cut(cumulative_dose_sample1_to_last,
-                               breaks = quantile(cumulative_dose_sample1_to_last, 
-                                                 probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
-                               include.lowest = TRUE,
-                               labels = c("1", "2", "3"))) |> 
-  select(mrn, eqd2, cumulative_dose_sample1_to_last, tertile_cumdose,
-         everything(), rad_eqd2_tertile) |> 
-  mutate(tertile_summedtertile_of_alldoses = cut(rad_score_before_sample2,
-                                                 breaks = quantile(rad_score_before_sample2, 
-                                                                   probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
-                                                 include.lowest = TRUE,
-                                                 labels = c("1", "2", "3")))
+  select(mrn, starts_with("rad_score_")) |> 
+  distinct(mrn, .keep_all = TRUE)
+  # # Approach 1 -1 tertile for cumulative dose over all ranges
+  # group_by(mrn) %>% 
+  # mutate(cumulative_dose_sample1_to_last = sum(eqd2, na.rm = TRUE)) %>% 
+  # ungroup() %>% 
+  # # Approach 1 -1 tertile over cumulative dose 
+  # arrange(mrn, cumulative_dose_sample1_to_last) |> 
+  # select(-c(tx_start, tx_end, rad_site : sample7_collection_dt)) |> 
+  # group_by(mrn, across(contains("range_")), across(contains("rad_score")), cumulative_dose_sample1_to_last) |> 
+  # summarise_at(vars(eqd2, rad_eqd2_tertile), str_c, collapse = " + ") %>% 
+  # ungroup() |> 
+  # 
+  # # distinct(mrn, .keep_all = TRUE) %>% # Used summarize instead
+  # # select(mrn, cumulative_dose_sample1_to_last) %>% 
+  # # create tertile categories
+  # mutate(tertile_cumdose = cut(cumulative_dose_sample1_to_last,
+  #                              breaks = quantile(cumulative_dose_sample1_to_last, 
+  #                                                probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
+  #                              include.lowest = TRUE,
+  #                              labels = c("1", "2", "3"))) |> 
+  # select(mrn, eqd2, cumulative_dose_sample1_to_last, tertile_cumdose,
+  #        everything(), rad_eqd2_tertile) |> 
+  # mutate(tertile_summedtertile_of_alldoses = cut(rad_score_before_sample2,
+  #                                                breaks = quantile(rad_score_before_sample2, 
+  #                                                                  probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
+  #                                                include.lowest = TRUE,
+  #                                                labels = c("1", "2", "3")))
   
 
-write_csv(treatment_dose1,
+write_csv(treatment_narrow_class_dose,
           paste0("data/processed_data",
-                 "/CHevolution_DrugClassDosingScore_", 
+                 "/CHevolution_NarrowDrugClassDosingScore_", 
+                 str_remove_all(today(), "-"), ".csv"))
+write_csv(treatment_general_class_dose,
+          paste0("data/processed_data",
+                 "/CHevolution_GeneralDrugClassDosingScore_", 
                  str_remove_all(today(), "-"), ".csv"))
 
 write_csv(radiation_dose1,
@@ -327,9 +373,13 @@ write_csv(radiation_dose1,
                  "/CHevolution_RadiationDosingScore_", 
                  str_remove_all(today(), "-"), ".csv"))
 
-write_csv(treatment_dose1,
+write_csv(treatment_narrow_class_dose,
           paste0(path, "/ProcessedData",
-                 "/CHevolution_DrugClassDosingScore_", 
+                 "/CHevolution_NarrowDrugClassDosingScore_", 
+                 str_remove_all(today(), "-"), ".csv"))
+write_csv(treatment_general_class_dose,
+          paste0(path, "/ProcessedData",
+                 "/CHevolution_GeneralDrugClassDosingScore_", 
                  str_remove_all(today(), "-"), ".csv"))
 
 write_csv(radiation_dose1,
