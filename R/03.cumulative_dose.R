@@ -16,17 +16,17 @@ path <- fs::path("", "Volumes", "Gillis_Research", "Lab_Data", "CHEvolutionTMN")
 
 treatment_dose <-
   readxl::read_xlsx(paste0(#here::here(), 
+                           # "/data/processed_data/CHEvolution_Treatment_20260721.xlsx"),
                            path,
                            "/ProcessedData/CHEvolution_Treatment_20260721.xlsx"),
-                           # "/data/processed_data/CHEvolution_Treatment_20260721.xlsx"),
                     sheet = "w doses kg m2", na = "NA") %>% 
   clean_names()
 
 
 parent_dir_path <- dirname(path)
 drug_class <- 
-  read.csv(paste0(#here::here(), 
-    # "/data/processed_data",
+  read.csv(paste0(#dirname(here::here()), 
+    # "/chemo_drug_class/data/BoltonDrugCategories",
     parent_dir_path,
     "/SharedResources/BoltonDrugCategories",
     "/CHevolution_Updated_BoltonChemoDosing_20260713.csv"))
@@ -252,12 +252,12 @@ radiation_dose1 <-
   filter(is.na(rad_after_last)) %>% 
   select(-rad_before_sample1, -rad_after_last) |> 
   # Approach 2- tertile for each radiation
-  mutate(rad_eqd2_tertile = cut(eqd2,
-                                breaks = quantile(eqd2, 
-                                                  probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
-                                include.lowest = TRUE,
-                                labels = c("1", "2", "3"))) |> 
-  mutate(rad_eqd2_tertile = as.numeric(rad_eqd2_tertile)) |> 
+  # mutate(rad_eqd2_tertile = cut(eqd2,
+  #                               breaks = quantile(eqd2, 
+  #                                                 probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
+  #                               include.lowest = TRUE,
+  #                               labels = c("1", "2", "3"))) |> 
+  # mutate(rad_eqd2_tertile = as.numeric(rad_eqd2_tertile)) |> 
   # Approach 2- tertile for each radiation
   # Create sample range filter
   mutate(range_before_sample2 = case_when(
@@ -295,42 +295,55 @@ radiation_dose1 <-
   )) |> 
   # calculate patient's score - sum tertile for each rad
   group_by(mrn) %>% 
-  mutate(rad_score_sample1_to_last = case_when(
-    !is.na(rad_eqd2_tertile)                              ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) %>% 
+  # mutate(rad_score_sample1_to_last = case_when(
+  #   !is.na(rad_eqd2_tertile)                              ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) %>% 
+  mutate(summed_rad_eqd2_sample1_to_last = sum(eqd2)) |> 
   group_by(mrn, range_before_sample2) %>% 
-  mutate(rad_score_before_sample2 = case_when(
-    !is.na(rad_eqd2_tertile) &
-      range_before_sample2 == "Yes"                       ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) |> 
-  group_by(mrn, range_sample2_sample3) %>% 
-  mutate(rad_score_sample2_to_sample3 = case_when(
-    !is.na(rad_eqd2_tertile) &
-      range_sample2_sample3 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) |> 
-  group_by(mrn, range_sample3_sample4) %>% 
-  mutate(rad_score_sample3_to_sample4 = case_when(
-    !is.na(rad_eqd2_tertile) &
-      range_sample3_sample4 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) |> 
-  group_by(mrn, range_sample4_sample5) %>% 
-  mutate(rad_score_sample4_to_sample5 = case_when(
-    !is.na(rad_eqd2_tertile) &
-      range_sample4_sample5 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) |> 
-  group_by(mrn, range_sample5_sample6) %>% 
-  mutate(rad_score_sample5_to_sample6 = case_when(
-    !is.na(rad_eqd2_tertile) &
-      range_sample5_sample6 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) |> 
-  group_by(mrn, range_sample6_sample7) %>% 
-  mutate(rad_score_sample6_to_sample7 = case_when(
-    !is.na(rad_eqd2_tertile) &
-      range_sample6_sample7 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
-  )) |> 
+  # mutate(rad_score_before_sample2 = case_when(
+  #   !is.na(rad_eqd2_tertile) &
+  #     range_before_sample2 == "Yes"                       ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) |> 
+  mutate(summed_rad_eqd2_before_sample2 = sum(eqd2)) |> 
+  # group_by(mrn, range_sample2_sample3) %>% 
+  # mutate(rad_score_sample2_to_sample3 = case_when(
+  #   !is.na(rad_eqd2_tertile) &
+  #     range_sample2_sample3 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) |> 
+  # group_by(mrn, range_sample3_sample4) %>% 
+  # mutate(rad_score_sample3_to_sample4 = case_when(
+  #   !is.na(rad_eqd2_tertile) &
+  #     range_sample3_sample4 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) |> 
+  # group_by(mrn, range_sample4_sample5) %>% 
+  # mutate(rad_score_sample4_to_sample5 = case_when(
+  #   !is.na(rad_eqd2_tertile) &
+  #     range_sample4_sample5 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) |> 
+  # group_by(mrn, range_sample5_sample6) %>% 
+  # mutate(rad_score_sample5_to_sample6 = case_when(
+  #   !is.na(rad_eqd2_tertile) &
+  #     range_sample5_sample6 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) |> 
+  # group_by(mrn, range_sample6_sample7) %>% 
+  # mutate(rad_score_sample6_to_sample7 = case_when(
+  #   !is.na(rad_eqd2_tertile) &
+  #     range_sample6_sample7 == "Yes"                      ~ sum(rad_eqd2_tertile, na.rm = TRUE)
+  # )) |> 
   ungroup() |> 
-  select(mrn, starts_with("rad_score_")) |> 
-  distinct(mrn, .keep_all = TRUE)
+  # select(mrn, starts_with("rad_score_")) |> 
+  select(mrn, starts_with("summed_rad")) |> 
+  distinct(mrn, .keep_all = TRUE) |> 
+  # Patients with dose within 40-66 are attributed to score of 2
+  # Patients with dose > 200 are attributed to score of 3
+  mutate(rad_score_sample1_to_last = case_when(
+    summed_rad_eqd2_sample1_to_last > 200                   ~ 3,
+    summed_rad_eqd2_sample1_to_last < 200                   ~ 2
+  )) |> 
+  mutate(rad_score_before_sample2 = case_when(
+    summed_rad_eqd2_before_sample2 > 200                    ~ 3,
+    summed_rad_eqd2_before_sample2 < 200                    ~ 2
+  ))
   # # Approach 1 -1 tertile for cumulative dose over all ranges
   # group_by(mrn) %>% 
   # mutate(cumulative_dose_sample1_to_last = sum(eqd2, na.rm = TRUE)) %>% 
